@@ -4,9 +4,11 @@ import (
 	"net/http"
 	"log"
 	"os"
+	"time"
 	"sync/atomic"
 	"database/sql"
 	_ "github.com/lib/pq"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/MMeier05/chirpy/internal/database"
 )
@@ -14,6 +16,13 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	db *database.Queries
+	platform string
+}
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -34,6 +43,7 @@ func main() {
 	}
 	apiCfg := apiConfig{}
 	apiCfg.db = database.New(db)
+	apiCfg.platform = os.Getenv("PLATFORM")
 
 	mux := http.NewServeMux()
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(
@@ -42,6 +52,7 @@ func main() {
 	mux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
 	mux.HandleFunc("POST /admin/reset", apiCfg.resetRequestsHandler)
 	mux.HandleFunc("POST /api/validate_chirp", checkValidHandler)
+	mux.HandleFunc("POST /api/users", apiCfg.createUserHandler)
 
 	srv := &http.Server{
 		Addr: ":" + port,
