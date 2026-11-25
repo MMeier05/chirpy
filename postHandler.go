@@ -4,11 +4,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
+	"github.com/MMeier05/chirpy/internal/database"
+	"github.com/google/uuid"
 )
 
-func checkValidHandler(w http.ResponseWriter, req *http.Request) {
+func (cfg *apiConfig) createPostHandler(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
 		Body string `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
 	}
 	decoder := json.NewDecoder(req.Body)
 	params := parameters{}
@@ -23,17 +27,34 @@ func checkValidHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	type returnVals struct {
-		CleanedBody string `json:"cleaned_body"`
+		ID uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Body string `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
 	}
 	cleanedString, err := replaceProfanity(params.Body)
 	if err != nil {
 		respondWithError(w, 500, "Something went wrong")
 		return
 	}
-	vals := returnVals{
-		CleanedBody: cleanedString,
+
+	post, err := cfg.db.CreatePost(req.Context(), database.CreatePostParams{
+		Body: cleanedString,
+		UserID: params.UserID,
+	})
+	if err != nil {
+		respondWithError(w, 500, "Something went wrong")
+		return
 	}
-	err = respondWithJSON(w, 200, vals)
+	vals := returnVals{
+		ID: post.ID,
+		CreatedAt: post.CreatedAt,
+		UpdatedAt: post.UpdatedAt,
+		Body: post.Body,
+		UserID: post.UserID,
+	}
+	err = respondWithJSON(w, 201, vals)
 	if err != nil {
 		respondWithError(w, 500, "Something went wrong")
 		return

@@ -7,7 +7,33 @@ package database
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
+
+const createPost = `-- name: CreatePost :one
+INSERT INTO posts (id, created_at, updated_at, body, user_id)
+VALUES (gen_random_uuid(), NOW(), NOW(), $1, $2)
+RETURNING id, created_at, updated_at, body, user_id
+`
+
+type CreatePostParams struct {
+	Body   string
+	UserID uuid.UUID
+}
+
+func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, error) {
+	row := q.db.QueryRowContext(ctx, createPost, arg.Body, arg.UserID)
+	var i Post
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Body,
+		&i.UserID,
+	)
+	return i, err
+}
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, created_at, updated_at, email)

@@ -41,9 +41,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	apiCfg := apiConfig{}
-	apiCfg.db = database.New(db)
-	apiCfg.platform = os.Getenv("PLATFORM")
+	apiCfg := apiConfig{
+		fileserverHits: atomic.Int32{},
+		db: database.New(db),
+		platform: os.Getenv("PLATFORM"),
+	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(
@@ -51,8 +53,8 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", readinessHandler)
 	mux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
 	mux.HandleFunc("POST /admin/reset", apiCfg.resetRequestsHandler)
-	mux.HandleFunc("POST /api/validate_chirp", checkValidHandler)
 	mux.HandleFunc("POST /api/users", apiCfg.createUserHandler)
+	mux.HandleFunc("POST /api/chirps", apiCfg.createPostHandler)
 
 	srv := &http.Server{
 		Addr: ":" + port,
