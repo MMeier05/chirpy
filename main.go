@@ -52,10 +52,12 @@ func main() {
 		http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))))
 	mux.HandleFunc("GET /api/healthz", readinessHandler)
 	mux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
+	mux.HandleFunc("GET /api/chirps", apiCfg.getAllPostsHandler)
+	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.getPostHandler)
 	mux.HandleFunc("POST /admin/reset", apiCfg.resetRequestsHandler)
 	mux.HandleFunc("POST /api/users", apiCfg.createUserHandler)
 	mux.HandleFunc("POST /api/chirps", apiCfg.createPostHandler)
-
+	mux.HandleFunc("POST /api/login", apiCfg.loginUserHandler)
 	srv := &http.Server{
 		Addr: ":" + port,
 		Handler: mux,
