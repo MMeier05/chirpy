@@ -9,9 +9,8 @@ import (
 	"github.com/MMeier05/chirpy/internal/database"
 )
 type Parameters struct {
-	Password string `json:"password"`
-	Email string `json:"email"`
-	ExpiresInSeconds time.Duration `json:"expires_in_seconds"`
+	Password 	string `json:"password"`
+	Email 		string `json:"email"`
 }
 
 func (cfg *apiConfig) createUserHandler(w http.ResponseWriter, req *http.Request) {
@@ -23,17 +22,17 @@ func (cfg *apiConfig) createUserHandler(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	//Call to Database to store user  
+	//Call to Database to store user
 	hashedPW, err := auth.HashPassword(params.Password)
 	if err != nil {
 		respondWithError(w, 500, "Something unexpected happened")
 		return
 	}
 	user, err := cfg.db.CreateUser(req.Context(), database.CreateUserParams{
-		Email: params.Email,
+		Email: 					params.Email,
 		HashedPassword: sql.NullString{
-			String: hashedPW,
-			Valid: true,
+		String: 				hashedPW,
+		Valid: 					true,
 		},
 	})
 	if err != nil {
@@ -42,10 +41,10 @@ func (cfg *apiConfig) createUserHandler(w http.ResponseWriter, req *http.Request
 	}
 
 	resp := User{
-		ID: user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email: user.Email,
+		ID: 				user.ID,
+		CreatedAt: 	user.CreatedAt,
+		UpdatedAt: 	user.UpdatedAt,
+		Email: 			user.Email,
 	}
 	err = respondWithJSON(w, 201, resp)
 	if err != nil {
@@ -78,21 +77,24 @@ func (cfg *apiConfig) loginUserHandler(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	reqExpirationTime := time.Duration(1 * time.Hour) 
-	if params.ExpiresInSeconds != 0 && params.ExpiresInSeconds < 3600 {
-		reqExpirationTime = time.Duration(params.ExpiresInSeconds * time.Second)
-	}
-	token, err := auth.MakeJWT(user.ID, cfg.jwtSecret, reqExpirationTime)
+	jwtToken, err := auth.MakeJWT(user.ID, cfg.jwtSecret, time.Duration(1 * time.Hour))
 	if err != nil {
 		respondWithError(w, 500, "Something unexpected happened")
 		return
 	}
+	refreshToken := auth.MakeRefreshToken()
+	cfg.db.CreateRefreshToken(req.Context(), database.CreateRefreshTokenParams{
+		Token: 			refreshToken,
+		UserID: 		user.ID,
+		ExpiresAt: 	time.Now().Add(time.Duration(24 * 60 * time.Hour)),
+	})
 	resp := User{
-		ID: user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email: user.Email,
-		Token: token,
+		ID: 					user.ID,
+		CreatedAt: 		user.CreatedAt,
+		UpdatedAt: 		user.UpdatedAt,
+		Email: 				user.Email,
+		Token: 				jwtToken,
+		RefreshToken: refreshToken,
 	}
 	err = respondWithJSON(w, 200, resp)
 	if err != nil {
@@ -100,3 +102,4 @@ func (cfg *apiConfig) loginUserHandler(w http.ResponseWriter, req *http.Request)
 		return
 	}
 }
+

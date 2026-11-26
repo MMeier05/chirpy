@@ -14,17 +14,18 @@ import (
 )
 
 type apiConfig struct {
-	fileserverHits atomic.Int32
-	db *database.Queries
-	platform string
-	jwtSecret string
+	fileserverHits 	atomic.Int32
+	db 							*database.Queries
+	platform 				string
+	jwtSecret 			string
 }
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-	Token 		string 		`json:"token"`
+	ID        		uuid.UUID `json:"id"`
+	CreatedAt 		time.Time `json:"created_at"`
+	UpdatedAt 		time.Time `json:"updated_at"`
+	Email     		string    `json:"email"`
+	Token 				string 		`json:"token"`
+	RefreshToken 	string 		`json:"refresh_token"`
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -45,9 +46,9 @@ func main() {
 	}
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
-		db: database.New(db),
-		platform: os.Getenv("PLATFORM"),
-		jwtSecret: os.Getenv("JWT_SECRET"),
+		db: 						database.New(db),
+		platform: 			os.Getenv("PLATFORM"),
+		jwtSecret: 			os.Getenv("JWT_SECRET"),
 	}
 
 	mux := http.NewServeMux()
@@ -61,9 +62,11 @@ func main() {
 	mux.HandleFunc("POST /api/users", apiCfg.createUserHandler)
 	mux.HandleFunc("POST /api/chirps", apiCfg.createPostHandler)
 	mux.HandleFunc("POST /api/login", apiCfg.loginUserHandler)
+	mux.HandleFunc("POST /api/refresh", apiCfg.refreshTokenHandler)
+	mux.HandleFunc("POST /api/revoke", apiCfg.revokeTokenHandler)
 	srv := &http.Server{
-		Addr: ":" + port,
-		Handler: mux,
+		Addr: 		":" + port,
+		Handler:	mux,
 	}
 	// Start the server 
 	log.Fatal(srv.ListenAndServe())

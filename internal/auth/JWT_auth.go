@@ -1,10 +1,12 @@
 package auth
 
 import (
+	"time"
 	"errors"
 	"strings"
 	"net/http"
-	"time"
+	"crypto/rand"
+	"encoding/hex"
 	"github.com/google/uuid"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -51,4 +53,10 @@ func GetBearerToken(headers http.Header) (string, error) {
 		return "", errors.New("No Authorization Header found")
 	}
 	return tokenString, nil
+}
+
+func MakeRefreshToken () string {
+	key := make([]byte, 32)
+	rand.Read(key)
+	return hex.EncodeToString(key)
 }
