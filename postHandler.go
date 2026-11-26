@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 	"github.com/MMeier05/chirpy/internal/database"
+	"github.com/MMeier05/chirpy/internal/auth"
 	"github.com/google/uuid"
 )
 
@@ -21,8 +22,7 @@ import (
 
 func (cfg *apiConfig) createPostHandler(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
-		Body string `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
+		Body 		string 		`json:"body"`
 	}
 	decoder := json.NewDecoder(req.Body)
 	params := parameters{}
@@ -31,11 +31,22 @@ func (cfg *apiConfig) createPostHandler(w http.ResponseWriter, req *http.Request
 		respondWithError(w, 500, "Something went wrong")
 		return
 	}
+	// auth
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
+	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, 401, "Unauthorized")
+	}
+
+
 	if len(params.Body) > 140 {
 		respondWithError(w, 400, "Chirp is too long")
 		return
 	}
-
 	cleanedString, err := replaceProfanity(params.Body)
 	if err != nil {
 		respondWithError(w, 500, "Something went wrong")
@@ -44,7 +55,7 @@ func (cfg *apiConfig) createPostHandler(w http.ResponseWriter, req *http.Request
 
 	post, err := cfg.db.CreatePost(req.Context(), database.CreatePostParams{
 		Body: cleanedString,
-		UserID: params.UserID,
+		UserID: userID,
 	})
 	if err != nil {
 		respondWithError(w, 500, "Something went wrong")
