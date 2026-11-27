@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"encoding/json"
 	"database/sql"
+	"github.com/google/uuid"
 	"github.com/MMeier05/chirpy/internal/auth"
 	"github.com/MMeier05/chirpy/internal/database"
 )
@@ -45,6 +46,7 @@ func (cfg *apiConfig) createUserHandler(w http.ResponseWriter, req *http.Request
 		CreatedAt: 	user.CreatedAt,
 		UpdatedAt: 	user.UpdatedAt,
 		Email: 			user.Email,
+		IsChirpyRed: 	user.IsChirpyRed.Bool,
 	}
 	err = respondWithJSON(w, 201, resp)
 	if err != nil {
@@ -95,6 +97,7 @@ func (cfg *apiConfig) loginUserHandler(w http.ResponseWriter, req *http.Request)
 		Email: 				user.Email,
 		Token: 				jwtToken,
 		RefreshToken: refreshToken,
+		IsChirpyRed: 	user.IsChirpyRed.Bool,
 	}
 	err = respondWithJSON(w, 200, resp)
 	if err != nil {
@@ -103,3 +106,94 @@ func (cfg *apiConfig) loginUserHandler(w http.ResponseWriter, req *http.Request)
 	}
 }
 
+func (cfg *apiConfig) updateUserDataHandler(w http.ResponseWriter, req *http.Request) {
+	decoder := json.NewDecoder(req.Body)
+	params := Parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, 500, "Something unexpected happened")
+		return
+	}
+
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		respondWithError(w, 401, "Unauthorized")
+		return
+	}
+	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, 401, "Unauthorized")
+		return
+	}
+	hashedPW, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, 500, "Something unexpected happened")
+		return
+	}
+	err = cfg.db.UpdateUsersEmailPassword(req.Context(), database.UpdateUsersEmailPasswordParams{
+		ID: userID,
+		Email: params.Email,
+		HashedPassword: sql.NullString{
+			String: hashedPW,
+			Valid: true,
+		},
+	})
+	if err != nil {
+		respondWithError(w, 500, "Something unexpected happened")
+		return
+	}
+	type returnVals struct {
+		Email string `json:"email"`
+	}
+	vals := returnVals{
+		Email: params.Email,
+	}
+	err = respondWithJSON(w, 200, vals)
+	if err != nil {
+		respondWithError(w, 500, "Something unexpected happened")
+		return
+	}
+}
+
+func (cfg *apiConfig) polkaWebhooksHandler(w http.ResponseWriter, req *http.Request) {
+	type Parameters struct {
+		Event string `json:"event"`
+		Data struct {
+			UserID uuid.UUID `json:"user_id"`
+		} `json:"data"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	params := Parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, 500, "Something unexpected happened")
+		return
+	}
+	recievedKey, err := auth.GetAPIKey(req.Header)
+	if err != nil {
+		respondWithError(w, 401, "Unauthorized")
+		return
+	}
+	if recievedKey != cfg.polkaKey {
+		respondWithError(w, 401, "Unauthorized")
+		return
+	}
+	if params.Event != "user.upgraded" {
+		respondWithJSON(w, 204, nil)
+		return
+	}
+	if params.Event == "user.upgraded" {
+		err = cfg.db.UpgradeToChirpyRed(req.Context(), params.Data.UserID)
+		if err != nil {
+			respondWithError(w, 500, "Something unexpected happened")
+			return
+		}
+	}
+	err = respondWithJSON(w, 204, nil)
+	if err != nil {
+		respondWithError(w, 500, "Something unexpected happened")
+		return
+	}
+
+}

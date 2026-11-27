@@ -18,6 +18,7 @@ type apiConfig struct {
 	db 							*database.Queries
 	platform 				string
 	jwtSecret 			string
+	polkaKey				string
 }
 type User struct {
 	ID        		uuid.UUID `json:"id"`
@@ -26,6 +27,7 @@ type User struct {
 	Email     		string    `json:"email"`
 	Token 				string 		`json:"token"`
 	RefreshToken 	string 		`json:"refresh_token"`
+	IsChirpyRed 	bool 		`json:"is_chirpy_red"`
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -34,6 +36,7 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 		next.ServeHTTP(w, req)
 	})
 }
+
 const port = "8080"
 const filepathRoot = "."
 
@@ -49,19 +52,28 @@ func main() {
 		db: 						database.New(db),
 		platform: 			os.Getenv("PLATFORM"),
 		jwtSecret: 			os.Getenv("JWT_SECRET"),
+		polkaKey: 			os.Getenv("POLKA_KEY"),
 	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(
 		http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))))
+
 	mux.HandleFunc("GET /api/healthz", readinessHandler)
+
 	mux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
+
+	mux.HandleFunc("POST /api/chirps", apiCfg.createPostHandler)
 	mux.HandleFunc("GET /api/chirps", apiCfg.getAllPostsHandler)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.getPostHandler)
+
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.deletePostHandler)
 	mux.HandleFunc("POST /admin/reset", apiCfg.resetRequestsHandler)
 	mux.HandleFunc("POST /api/users", apiCfg.createUserHandler)
-	mux.HandleFunc("POST /api/chirps", apiCfg.createPostHandler)
+	mux.HandleFunc("PUT /api/users", apiCfg.updateUserDataHandler)
 	mux.HandleFunc("POST /api/login", apiCfg.loginUserHandler)
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.polkaWebhooksHandler)
+
 	mux.HandleFunc("POST /api/refresh", apiCfg.refreshTokenHandler)
 	mux.HandleFunc("POST /api/revoke", apiCfg.revokeTokenHandler)
 	srv := &http.Server{

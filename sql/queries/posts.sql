@@ -18,3 +18,9 @@ FROM
   posts
 WHERE
   id = $1;
+
+-- name: DeletePost :exec
+DELETE FROM 
+  Posts
+WHERE
+ id = $1;

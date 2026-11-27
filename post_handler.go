@@ -12,13 +12,13 @@ import (
 	"github.com/google/uuid"
 )
 
-	type returnVals struct {
-		ID uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Body string `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
-	}
+type returnVals struct {
+	ID uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body string `json:"body"`
+	UserID uuid.UUID `json:"user_id"`
+}
 
 func (cfg *apiConfig) createPostHandler(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
@@ -143,3 +143,37 @@ func replaceProfanity(body string) (string, error) {
 	return strings.Join(split, " "), nil
 }
 
+func (cfg *apiConfig) deletePostHandler(w http.ResponseWriter, req *http.Request) {
+	stringPostID := req.PathValue("chirpID")
+	postID, err := uuid.Parse(stringPostID)
+	if err != nil {
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
+	post, err := cfg.db.GetPost(req.Context(), postID)
+	if err != nil {
+		respondWithError(w, 404, "Post not found")
+		return
+	}
+
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		respondWithError(w, 401, "Unauthorized")
+		return
+	}
+	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, 401, "Unauthorized")
+		return
+	}
+	if post.UserID != userID {
+		respondWithError(w, 403, "Unauthorized")
+		return
+	}
+	err = cfg.db.DeletePost(req.Context(), postID)
+	if err != nil {
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
+	respondWithJSON(w, 204, nil)
+}
